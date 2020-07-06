@@ -65,6 +65,8 @@ async function runClient (opts) {
       }));
     }, opts.interval);
   });
+  ws.on('error', error => log.error(error, 'socker error'));
+  ws.on('close', (code, reason) => log.error({ reason, code }, `socket closed (${code})`));
 }
 
 // args parser
