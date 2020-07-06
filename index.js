@@ -29,7 +29,7 @@ function createLogger (opts) {
 async function runServer (opts) {
   const log = createLogger({ ...opts, name: 'server' });
   log.debug({ opts }, 'setting up server...');
-  const wss = new WebSocket.Server({ port: opts.port });
+  const wss = new WebSocket.Server({ port: opts.port, path: opts.path });
   wss.on('connection', (ws) => {
     ws.on('message', (message) => {
       log.debug({ message: JSON.parse(message, null, 2) }, 'received message');
@@ -41,7 +41,7 @@ async function runServer (opts) {
       payload: `Welcome!`
     }));
   });
-  wss.on('listening', () => log.info(`server listening @ port ${opts.port}`));
+  wss.on('listening', () => log.info(`server listening @ port ${opts.port} on path ${opts.path}`));
 }
 
 async function runClient (opts) {
@@ -63,7 +63,7 @@ async function runClient (opts) {
         type: 'message',
         payload: `send message ${++counter}`,
       }));
-    }, 5000);
+    }, opts.interval);
   });
 }
 
@@ -96,6 +96,12 @@ yargs
       .option('url', { 
         type: 'string', 
         default: 'http://localhost:8080/wss',
+        description: 'Url of the server to connect to'
+      })
+      .option('interval', { 
+        type: 'number', 
+        default: 5000,
+        description: 'Interval between sending message',
       }),
     runClient,
   )
