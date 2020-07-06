@@ -1,0 +1,19 @@
+{
+  "name": "test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "pkg --target node12-linux-x64 --output test-app --config package.json index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bunyan": "^1.8.14",
+    "ws": "^7.3.1",
+    "yargs": "^15.4.0"
+  },
+  "devDependencies": {
+    "pkg": "^4.4.9"
+  }
+}
