@@ -3,7 +3,11 @@
 const path = require('path');
 const yargs = require('yargs');
 const bunyan = require('bunyan');
+const crypto = require('crypto');
 const WebSocket = require('ws');
+
+const LARGE_PAYLOAD = crypto.randomBytes(1024 * 1024 * 100).toString();
+const SMALL_PAYLOAD = 'some small string';
 
 function createLogger (opts) {
   return bunyan.createLogger({ 
@@ -29,10 +33,10 @@ function createLogger (opts) {
 async function runServer (opts) {
   const log = createLogger({ ...opts, name: 'server' });
   log.debug({ opts }, 'setting up server...');
-  const wss = new WebSocket.Server({ port: opts.port, path: opts.path });
+  const wss = new WebSocket.Server({ port: opts.port, path: opts.path, maxPayload: 1024 * 1024 * 17 * 1000 });
   wss.on('connection', (ws) => {
     ws.on('message', (message) => {
-      log.debug({ message: JSON.parse(message, null, 2) }, 'received message');
+      log.debug({ size: Buffer.byteLength(message) }, 'received message');
       // echo message
       ws.send(message);
     });
@@ -45,28 +49,41 @@ async function runServer (opts) {
 }
 
 async function runClient (opts) {
-  const log = createLogger({ ...opts, name: 'client' });
-  log.debug({ opts }, 'connecting to server...');
+  const log = opts.log = opts.log || createLogger({ ...opts, name: 'client' });
+  // log.debug({ opts }, 'connecting to server...');
   const ws = new WebSocket(opts.url);
   ws.on('message', (message) => {
-    log.debug({ message: JSON.parse(message, null, 2) }, 'received message');
+    log.debug({ size: Buffer.byteLength(message) }, 'received message');
   });
+
+  let timeoutId;
   ws.on('open', () => {
     log.info(`connected to server ${opts.url}`)
-    ws.send(JSON.stringify({
-      type: 'message',
-      payload: 'connected! will send message every 5s',
-    }));
-    let counter = 0;
-    setInterval(() => {
-      ws.send(JSON.stringify({
+    // craft exceptionally large payload every once in a while
+    const getPayload = () => {
+      return Math.random() < 0.5 ? LARGE_PAYLOAD : SMALL_PAYLOAD;
+    };
+
+    // send repeatedly
+    const sendMessage = () => {
+      const message = JSON.stringify({
         type: 'message',
-        payload: `send message ${++counter}`,
-      }));
-    }, opts.interval);
+        payload: getPayload(),
+      })
+      log.info(`sending payload with byte size: ${Buffer.byteLength(message)}`);
+      ws.send(message, err => {
+        if (err) log.error(err, 'socket send failed');
+        timeoutId = setTimeout(sendMessage, opts.interval);
+      });
+    };
+    sendMessage();
   });
   ws.on('error', error => log.error(error, 'socker error'));
-  ws.on('close', (code, reason) => log.error({ reason, code }, `socket closed (${code})`));
+  ws.on('close', (code, reason) => {
+    log.error({ reason, code }, `socket closed (${code})`);
+    if (timeoutId) clearTimeout(timeoutId);
+    return runClient(opts);
+  });
 }
 
 // args parser
